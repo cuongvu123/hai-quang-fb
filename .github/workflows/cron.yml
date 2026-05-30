@@ -1,0 +1,44 @@
+name: cron-pinger
+
+# Thay thế Vercel Cron (Hobby chỉ cho 1 lần/ngày).
+# Mỗi schedule kích hoạt 1 endpoint riêng. Phải đặt 2 secret trên GitHub:
+#   APP_URL      = https://<your>.vercel.app   (không có dấu / cuối)
+#   CRON_SECRET  = trùng với CRON_SECRET trên Vercel/server
+#
+# Lưu ý: GitHub Actions cron tối thiểu 5 phút, có thể trễ vài phút lúc cao điểm.
+# Repo public → minutes không giới hạn. Repo private → 2000 phút/tháng free,
+# job này chỉ tốn ~5 giây/lần nên dư sức (≈360 phút/tháng).
+
+on:
+  schedule:
+    - cron: '0 * * * *'         # crawl: mỗi giờ
+    - cron: '*/10 * * * *'      # publish: mỗi 10 phút
+    - cron: '30 6 * * 1,3,4,6'  # generate: 13:30 VN, T2/T4/T5/T7
+  workflow_dispatch:             # cho phép bấm chạy thủ công
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Pick endpoint by schedule
+        id: pick
+        run: |
+          case "${{ github.event.schedule }}" in
+            "0 * * * *")        echo "path=/api/cron/crawl"    >> "$GITHUB_OUTPUT" ;;
+            "*/10 * * * *")     echo "path=/api/cron/publish"  >> "$GITHUB_OUTPUT" ;;
+            "30 6 * * 1,3,4,6") echo "path=/api/cron/generate" >> "$GITHUB_OUTPUT" ;;
+            *)                  echo "path=/api/cron/crawl"    >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Call endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          url="${APP_URL}${{ steps.pick.outputs.path }}"
+          echo "→ $url"
+          curl -fsS --max-time 60 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "$url" | head -c 2000

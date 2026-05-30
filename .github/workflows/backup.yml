@@ -1,0 +1,38 @@
+name: db-backup
+
+# Backup hàng tuần cho Supabase Free (vốn không có backup tự động).
+# Artifact lưu 90 ngày, dung lượng artifact free = 500MB/tháng (đủ cho DB nhỏ).
+# Secret cần thêm trên GitHub:
+#   DATABASE_URL = chuỗi kết nối postgres của Supabase
+#                  (Dashboard > Project Settings > Database > Connection string > URI)
+
+on:
+  schedule:
+    - cron: '0 18 * * 0'   # 01:00 sáng Chủ nhật giờ VN (18:00 UTC thứ 7)
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Dump database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          ts=$(date -u +%Y%m%d-%H%M%S)
+          pg_dump --no-owner --no-privileges "$DATABASE_URL" | gzip > "backup-${ts}.sql.gz"
+          ls -lh backup-*.sql.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_number }}
+          path: backup-*.sql.gz
+          retention-days: 90
