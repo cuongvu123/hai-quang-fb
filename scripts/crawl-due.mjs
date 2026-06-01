@@ -47,6 +47,7 @@ if (!SUPA_URL || !SERVICE || !TENANT) {
 const args = process.argv.slice(2);
 const FORCE = args.includes('--force');
 const ONLY_SOURCE = args.includes('--source') ? args[args.indexOf('--source') + 1] : null;
+const RESUMMARIZE = args.includes('--resummarize'); // tóm tắt lại tin đã có (không crawl)
 
 // User-Agent trình duyệt thật — vài site/WAF chặn UA lạ.
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
@@ -64,6 +65,78 @@ const rss = new Parser({
   customFields: { item: [['media:content', 'media'], ['enclosure', 'enclosure'], ['img', 'img']] },
 });
 
+// ---------- Tóm tắt bằng Gemini --------------------------------------
+// Đọc key/model từ bảng settings (giống app). Tóm tắt CHỈ cho tin MỚI để tiết kiệm quota.
+const { data: setRows } = await db.from('settings').select('key,value').eq('tenant_id', TENANT);
+const SET = Object.fromEntries((setRows ?? []).map((r) => [r.key, r.value]));
+const GEMINI_KEY = (!SET.ai_provider || SET.ai_provider === 'gemini') ? SET.gemini_api_key : null;
+const GEMINI_MODEL = SET.gemini_model || 'gemini-2.5-flash-lite';
+const SUMMARIZE = !!GEMINI_KEY;
+const SUMMARY_DELAY_MS = 4500; // ~13 req/phút, dưới giới hạn free 15 RPM
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
+const SUMMARY_SYS = `Bạn là biên tập viên bản tin cộng đồng xã Hải Quang. Hãy tóm tắt bài dưới đây thành MỘT đoạn 200–500 ký tự, nêu bật ý chính (ai, việc gì, khi nào, ở đâu, kết quả/ý nghĩa). Văn phong phải PHÙ HỢP với loại tin: thông báo/văn bản hành chính → rõ ràng, trang trọng; sự kiện → mời gọi, gần gũi; tin hoạt động/thời sự → súc tích, khách quan. Viết tiếng Việt có dấu, KHÔNG mở đầu bằng "Tóm tắt", chỉ trả về đúng đoạn văn tóm tắt.`;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function summarize(title, content, retries = 3) {
+  const userText = `Tiêu đề: ${title}\n\nNội dung:\n${content.slice(0, 6000)}`;
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(GEMINI_URL, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SUMMARY_SYS }] },
+        contents: [{ role: 'user', parts: [{ text: userText }] }],
+        generationConfig: { temperature: 0.4, maxOutputTokens: 400 },
+      }),
+    });
+    if (res.status === 429 && attempt < retries) {
+      // RESOURCE_EXHAUSTED: chờ theo RetryInfo nếu có, mặc định backoff tăng dần.
+      let wait = 20_000 * (attempt + 1);
+      try {
+        const j = await res.json();
+        const d = j?.error?.details?.find((x) => String(x['@type']).includes('RetryInfo'))?.retryDelay;
+        if (d) wait = Math.max(wait, (parseFloat(d) || 0) * 1000 + 1000);
+      } catch { /* dùng backoff mặc định */ }
+      console.log(`    (429, chờ ${Math.round(wait / 1000)}s rồi thử lại…)`);
+      await sleep(wait);
+      continue;
+    }
+    if (!res.ok) throw new Error(`Gemini ${res.status}`);
+    const data = await res.json();
+    const out = (data?.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join(' ');
+    return out.replace(/\s+/g, ' ').trim();
+  }
+}
+
+/** Tóm tắt dự phòng khi không có/AI lỗi: cắt ~280 ký tự ở ranh giới từ. */
+function fallbackSummary(text) {
+  const s = (text || '').replace(/\s+/g, ' ').trim();
+  return s.length <= 500 ? s : s.slice(0, 280).replace(/\s+\S*$/, '') + '…';
+}
+
+// ---------- chế độ tóm tắt lại (không crawl) -------------------------
+if (RESUMMARIZE) {
+  if (!SUMMARIZE) { console.error('Chưa cấu hình gemini_api_key trong settings.'); process.exit(1); }
+  let q = db.from('crawled_news').select('id,title,content,summary').eq('tenant_id', TENANT);
+  if (ONLY_SOURCE) q = q.eq('source_id', ONLY_SOURCE);
+  const { data: rs, error: e } = await q;
+  if (e) { console.error(e); process.exit(1); }
+  // Tóm tắt lại tin có nội dung đủ dài VÀ summary đang là fallback (kết thúc bằng …) hoặc rỗng.
+  const todo = (rs ?? []).filter((r) => r.content && r.content.length > 200
+    && (!r.summary || r.summary.endsWith('…')));
+  console.log(`Tóm tắt lại ${todo.length}/${(rs ?? []).length} tin…`);
+  let n = 0;
+  for (const r of todo) {
+    try {
+      const sm = await summarize(r.title, r.content);
+      if (sm) { await db.from('crawled_news').update({ summary: sm }).eq('id', r.id); n++; }
+    } catch (err) { console.log('  bỏ qua:', r.title.slice(0, 40), '—', err.message); }
+    await sleep(SUMMARY_DELAY_MS);
+  }
+  console.log(`Xong: ${n}/${todo.length} tin đã tóm tắt lại.`);
+  process.exit(0);
+}
+
 // ---------- main ------------------------------------------------------
 const { data: rows, error } = await db
   .from('sources').select('*')
@@ -80,7 +153,7 @@ let totalInserted = 0;
 for (const s of sources) {
   const r = await crawlSource(s);
   totalInserted += r.inserted;
-  const tag = r.error ? `LỖI: ${r.error}` : `found=${r.found} new=${r.inserted} skip=${r.skipped} cũ=${r.old}`;
+  const tag = r.error ? `LỖI: ${r.error}` : `found=${r.found} new=${r.inserted} skip=${r.skipped} cũ=${r.old} tóm tắt=${r.summarized}`;
   console.log(`  • ${s.name}: ${tag}`);
 }
 console.log(`Hoàn tất. Tổng tin mới: ${totalInserted}`);
@@ -88,15 +161,24 @@ process.exit(0);
 
 // ---------- crawl 1 nguồn --------------------------------------------
 async function crawlSource(s) {
-  const report = { found: 0, inserted: 0, skipped: 0, old: 0, error: undefined };
+  const report = { found: 0, inserted: 0, skipped: 0, old: 0, summarized: 0, error: undefined };
   try {
     const items = await fetchItems(s);
     report.found = items.length;
     for (const it of items) {
       // Bỏ tin cũ (chỉ khi xác định được ngày). Tin không ngày -> vẫn nạp.
       if (it.publishedAt && it.publishedAt.getTime() < AGE_CUTOFF) { report.old++; continue; }
-      const ok = await insertNewsIfNew(s, it);
-      ok ? report.inserted++ : report.skipped++;
+      const id = await insertNewsIfNew(s, it);
+      if (!id) { report.skipped++; continue; }
+      report.inserted++;
+      // Chỉ tóm tắt tin MỚI (tránh tốn quota cho tin trùng).
+      let summary = null;
+      if (SUMMARIZE && it.content && it.content.length > 200) {
+        try { summary = await summarize(it.title, it.content); report.summarized++; }
+        catch { summary = null; }
+        await sleep(SUMMARY_DELAY_MS);
+      }
+      await db.from('crawled_news').update({ summary: summary || fallbackSummary(it.content || it.title) }).eq('id', id);
     }
     await db.from('sources').update({ last_crawled_at: new Date().toISOString() }).eq('id', s.id);
   } catch (e) {
@@ -212,11 +294,11 @@ function fetchText(url, redirects = 4) {
       headers: { 'user-agent': UA, 'accept-encoding': 'gzip, deflate, br', accept: '*/*' },
     }, (res) => {
       const { statusCode = 0, headers } = res;
-      if (statusCode >= 300 && statusCode < 400 && headers.location && redirects > 0) {
+      if (statusCode >= 500 && statusCode < 400 && headers.location && redirects > 0) {
         res.resume();
         return resolve(fetchText(new URL(headers.location, url).toString(), redirects - 1));
       }
-      if (statusCode < 200 || statusCode >= 300) { res.resume(); return reject(new Error(`HTTP ${statusCode}`)); }
+      if (statusCode < 200 || statusCode >= 500) { res.resume(); return reject(new Error(`HTTP ${statusCode}`)); }
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
@@ -256,17 +338,18 @@ function dedupHash(originUrl, title) {
   return createHash('sha256').update(`${originUrl.trim()}|${normalizeTitle(title)}`).digest('hex');
 }
 
+/** Insert nếu chưa có. Trả id (string) nếu là tin mới, null nếu trùng. */
 async function insertNewsIfNew(source, it) {
-  const { error } = await db.from('crawled_news').insert({
+  const { data, error } = await db.from('crawled_news').insert({
     tenant_id: TENANT, source_id: source.id, title: it.title, content: it.content,
     published_at: it.publishedAt ? it.publishedAt.toISOString() : null,
     origin_url: it.originUrl, image_url: it.imageUrl, dedup_hash: dedupHash(it.originUrl, it.title),
-  });
+  }).select('id').single();
   if (error) {
-    if (error.code === '23505') return false; // trùng (unique tenant_id+dedup_hash)
+    if (error.code === '23505') return null; // trùng (unique tenant_id+dedup_hash)
     throw error;
   }
-  return true;
+  return data.id;
 }
 
 // ---------- isDue (khớp src/lib/crawler) ------------------------------
