@@ -12,11 +12,11 @@ insert into tenants (id, name, slug, province, fb_group_id, timezone) values
 insert into sources (tenant_id, name, url, type, config, crawl_interval_min) values
   ('11111111-1111-1111-1111-111111111111', 'Cổng TTĐT tỉnh Ninh Bình',
    'https://ninhbinh.gov.vn', 'province_website',
-   '{"listSelector":".news-item","titleSelector":"h3 a","linkSelector":"h3 a","contentSelector":".detail-content"}', 720),
+   '{"listSelector":".HotnewsItem","titleSelector":".ArticleTitle","linkSelector":"a","imageSelector":"img.HotnewsItemImage"}', 720),
 
   ('11111111-1111-1111-1111-111111111111', 'Báo Ninh Bình điện tử',
    'https://baoninhbinh.org.vn', 'local_news',
-   '{"listSelector":"article","titleSelector":"h2 a","linkSelector":"h2 a","contentSelector":".article-body"}', 360),
+   '{"listSelector":"article","titleSelector":"a","linkSelector":"a"}', 360),
 
   ('11111111-1111-1111-1111-111111111111', 'RSS Báo Ninh Bình',
    'https://baoninhbinh.org.vn/rss/home.rss', 'rss', '{}', 180),
