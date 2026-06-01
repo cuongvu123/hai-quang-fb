@@ -12,8 +12,10 @@ name: cron-pinger
 on:
   schedule:
     - cron: '0 * * * *'         # crawl: mỗi giờ
-    - cron: '*/10 * * * *'      # publish: mỗi 10 phút
     - cron: '30 6 * * 1,3,4,6'  # generate: 13:30 VN, T2/T4/T5/T7
+    # publish bị tắt khi deploy Vercel (Playwright/Group không chạy serverless).
+    # Đăng Group chạy riêng ở máy self-host. Bật lại nếu dùng Graph API/Page:
+    # - cron: '*/10 * * * *'   # publish: mỗi 10 phút
   workflow_dispatch:             # cho phép bấm chạy thủ công
 
 jobs:
