@@ -277,7 +277,7 @@ Trên Vercel Pro hoặc self-host VPS, có thể dùng `vercel.json` hoặc cont
 | API: sources CRUD, drafts approve/reject | ✅ Hoàn chỉnh |
 | UI: Dashboard + Drafts | ✅ 2 màn mẫu hoàn chỉnh |
 | UI: Sources / News / Calendar / Settings | 🟡 Có cấu trúc + wireframe, cần dựng theo mẫu Drafts |
-| Supabase Auth (login + middleware bảo vệ route) | 🟡 Hướng dẫn có sẵn, cần thêm `@supabase/ssr` + middleware |
+| Supabase Auth (login + middleware bảo vệ route) | ✅ Đã có `@supabase/ssr` + `src/middleware.ts` + `/login` + nút đăng xuất |
 | Mã hoá secret trong `settings` | 🟡 Cột `is_secret` sẵn sàng; cần thêm `lib/crypto.ts` (AES-GCM với `SETTINGS_ENCRYPTION_KEY`) |
 
 ### Việc nên làm tiếp (gợi ý thứ tự)

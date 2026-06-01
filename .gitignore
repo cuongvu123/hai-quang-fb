@@ -6,3 +6,4 @@ node_modules/
 .DS_Store
 playwright-state.json
 *.tsbuildinfo
+next-env.d.ts

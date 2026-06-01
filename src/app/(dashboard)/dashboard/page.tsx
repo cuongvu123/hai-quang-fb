@@ -1,6 +1,9 @@
 import { adminDb } from '@/lib/db/client';
 import { defaultTenantId } from '@/lib/cron-auth';
 
+// Số liệu realtime — luôn render động, không prerender lúc build.
+export const dynamic = 'force-dynamic';
+
 async function count(table: string, filters: Record<string, string> = {}) {
   let q = adminDb().from(table).select('*', { count: 'exact', head: true })
     .eq('tenant_id', defaultTenantId());

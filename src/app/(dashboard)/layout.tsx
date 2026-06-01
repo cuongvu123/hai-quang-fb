@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { LogoutButton } from './logout-button';
 
 const NAV = [
   { href: '/dashboard', label: 'Tổng quan', icon: '📊' },
@@ -30,6 +31,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               {n.label}
             </Link>
           ))}
+          <div className="pt-2">
+            <LogoutButton />
+          </div>
         </nav>
       </aside>
       <main className="flex-1 px-8 py-6">{children}</main>
