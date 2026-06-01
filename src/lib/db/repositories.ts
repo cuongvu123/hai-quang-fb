@@ -78,6 +78,16 @@ export async function unusedNews(tenantId: string, days = 7): Promise<CrawledNew
   return (data ?? []).map(mapNews);
 }
 
+/** Danh sách tin đã thu thập (mới nhất trước) — cho màn Tin đã thu thập. */
+export async function listNews(tenantId: string, limit = 100): Promise<CrawledNews[]> {
+  const { data, error } = await adminDb()
+    .from('crawled_news').select('*')
+    .eq('tenant_id', tenantId)
+    .order('crawled_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data ?? []).map(mapNews);
+}
+
 // ------------------------------ DRAFTS ------------------------------
 export interface NewDraft {
   tenantId: string; title: string; body: string; category: NewsCategory;
@@ -131,6 +141,17 @@ export async function dueSchedules(now = new Date()) {
   return data ?? [];
 }
 
+/** Danh sách lịch đăng (kèm tiêu đề bài) — cho màn Lịch đăng bài. */
+export async function listSchedules(tenantId: string, limit = 100) {
+  const { data, error } = await adminDb()
+    .from('publishing_schedule')
+    .select('id, scheduled_at, provider, status, attempts, ai_drafts(title, status)')
+    .eq('tenant_id', tenantId)
+    .order('scheduled_at', { ascending: true }).limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function setScheduleStatus(id: string, status: string, attempts?: number) {
   const patch: Record<string, unknown> = { status };
   if (attempts !== undefined) patch.attempts = attempts;
@@ -156,6 +177,35 @@ export async function getSettings(tenantId: string): Promise<Record<string, stri
     .from('settings').select('key, value').eq('tenant_id', tenantId);
   if (error) throw error;
   return Object.fromEntries((data ?? []).map((r) => [r.key, r.value ?? '']));
+}
+
+export interface SettingRow { key: string; value: string; isSecret: boolean }
+
+/** Liệt kê tất cả setting (kèm cờ is_secret) — cho màn Cài đặt. */
+export async function listSettings(tenantId: string): Promise<SettingRow[]> {
+  const { data, error } = await adminDb()
+    .from('settings').select('key, value, is_secret')
+    .eq('tenant_id', tenantId).order('key');
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ key: r.key, value: r.value ?? '', isSecret: r.is_secret }));
+}
+
+/** Thêm/cập nhật một setting theo key. */
+export async function upsertSetting(
+  tenantId: string, key: string, value: string, isSecret: boolean,
+): Promise<void> {
+  const { error } = await adminDb().from('settings').upsert(
+    { tenant_id: tenantId, key, value, is_secret: isSecret, updated_at: new Date().toISOString() },
+    { onConflict: 'tenant_id,key' },
+  );
+  if (error) throw error;
+}
+
+/** Xoá một setting theo key. */
+export async function deleteSetting(tenantId: string, key: string): Promise<void> {
+  const { error } = await adminDb().from('settings')
+    .delete().eq('tenant_id', tenantId).eq('key', key);
+  if (error) throw error;
 }
 
 // ----------------------------- MAPPERS ------------------------------
