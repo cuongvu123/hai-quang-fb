@@ -56,6 +56,9 @@ export const config = {
     // API quản trị (cron & telegram tự bảo vệ nên không liệt kê)
     '/api/sources/:path*',
     '/api/drafts/:path*',
+    '/api/news/:path*',
+    '/api/settings/:path*',
+    '/api/schedule/:path*',
     '/api/ingest/media',
   ],
 };
