@@ -19,11 +19,11 @@ insert into sources (tenant_id, name, url, type, config, crawl_interval_min) val
   -- Nguồn chung (tin tỉnh/báo) — interval dài (1 ngày).
   ('11111111-1111-1111-1111-111111111111', 'Cổng TTĐT tỉnh Ninh Bình',
    'https://ninhbinh.gov.vn', 'province_website',
-   '{"listSelector":".HotnewsItem","titleSelector":".ArticleTitle","linkSelector":"a","imageSelector":"img.HotnewsItemImage"}', 1440),
+   '{"listSelector":".HotnewsItem","titleSelector":".ArticleTitle","linkSelector":"a","imageSelector":"img.HotnewsItemImage","contentSelector":".ArticleContent"}', 1440),
 
   ('11111111-1111-1111-1111-111111111111', 'Báo Ninh Bình điện tử',
    'https://baoninhbinh.org.vn', 'local_news',
-   '{"listSelector":"article:has(time)","titleSelector":"a","linkSelector":"a","dateSelector":"time"}', 1440),
+   '{"listSelector":"article:has(time)","titleSelector":"a","linkSelector":"a","dateSelector":"time","contentSelector":".content-detail"}', 1440),
 
   ('11111111-1111-1111-1111-111111111111', 'UBND huyện (website xã)',
    'https://example-xa-haiquang.gov.vn', 'gov_website',

@@ -6,6 +6,7 @@ import type { CrawledNews } from '@/types';
 export default function NewsPage() {
   const [news, setNews] = useState<CrawledNews[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/news').then((r) => r.json()).then((j) => {
@@ -24,20 +25,36 @@ export default function NewsPage() {
       </p>
       {news.length === 0 && <p className="text-neutral-500">Chưa có tin nào.</p>}
       <div className="space-y-3">
-        {news.map((n) => (
-          <article key={n.id} className="rounded-xl border border-neutral-200 bg-white p-4">
-            <h2 className="font-medium">{n.title}</h2>
-            <p className="mt-1 line-clamp-3 text-sm text-neutral-600">{n.content}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-neutral-400">
-              {n.publishedAt && <span>📅 {new Date(n.publishedAt).toLocaleDateString('vi-VN')}</span>}
-              {n.originUrl && !n.originUrl.startsWith('manual://') && (
-                <a href={n.originUrl} target="_blank" rel="noreferrer" className="underline hover:text-neutral-600">
-                  Nguồn gốc ↗
-                </a>
+        {news.map((n) => {
+          const open = openId === n.id;
+          return (
+            <article key={n.id} className="rounded-xl border border-neutral-200 bg-white p-4">
+              <h2 className="font-medium">{n.title}</h2>
+              <p
+                className={`mt-1 whitespace-pre-line text-sm text-neutral-600 ${open ? '' : 'line-clamp-3'}`}
+              >
+                {n.content}
+              </p>
+              {n.content && n.content.length > 160 && (
+                <button
+                  type="button"
+                  onClick={() => setOpenId(open ? null : n.id)}
+                  className="mt-1 text-xs font-medium text-blue-600 hover:underline"
+                >
+                  {open ? 'Thu gọn' : 'Xem đầy đủ'}
+                </button>
               )}
-            </div>
-          </article>
-        ))}
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-neutral-400">
+                {n.publishedAt && <span>📅 {new Date(n.publishedAt).toLocaleDateString('vi-VN')}</span>}
+                {n.originUrl && !n.originUrl.startsWith('manual://') && (
+                  <a href={n.originUrl} target="_blank" rel="noreferrer" className="underline hover:text-neutral-600">
+                    Nguồn gốc ↗
+                  </a>
+                )}
+              </div>
+            </article>
+          );
+        })}
       </div>
     </div>
   );
