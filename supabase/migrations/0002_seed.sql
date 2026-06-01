@@ -10,19 +10,20 @@ insert into tenants (id, name, slug, province, fb_group_id, timezone) values
 
 -- 2) Sources mẫu
 insert into sources (tenant_id, name, url, type, config, crawl_interval_min) values
+  -- Nguồn chính: cổng xã Hải Quang. Crawl TRANG DANH SÁCH HTML (rss.aspx của site
+  -- này trả nhầm tin Nam Định cũ, không có ngày). Interval ngắn = ưu tiên crawl mỗi lần.
+  ('11111111-1111-1111-1111-111111111111', 'Cổng TTĐT xã Hải Quang',
+   'https://haiquang.ninhbinh.gov.vn/tin-tuc-su-kien', 'local_website',
+   '{"listSelector":".ArticleList li","titleSelector":"h2.Title a","linkSelector":"h2.Title a","dateSelector":".Ngaydang","imageSelector":"img.image","contentSelector":".ArticleContent"}', 30),
+
+  -- Nguồn chung (tin tỉnh/báo) — interval dài (1 ngày).
   ('11111111-1111-1111-1111-111111111111', 'Cổng TTĐT tỉnh Ninh Bình',
    'https://ninhbinh.gov.vn', 'province_website',
-   '{"listSelector":".HotnewsItem","titleSelector":".ArticleTitle","linkSelector":"a","imageSelector":"img.HotnewsItemImage"}', 720),
+   '{"listSelector":".HotnewsItem","titleSelector":".ArticleTitle","linkSelector":"a","imageSelector":"img.HotnewsItemImage"}', 1440),
 
   ('11111111-1111-1111-1111-111111111111', 'Báo Ninh Bình điện tử',
    'https://baoninhbinh.org.vn', 'local_news',
-   '{"listSelector":"article","titleSelector":"a","linkSelector":"a"}', 360),
-
-  ('11111111-1111-1111-1111-111111111111', 'RSS Báo Ninh Bình',
-   'https://baoninhbinh.org.vn/rss/home.rss', 'rss', '{}', 180),
-
-  ('11111111-1111-1111-1111-111111111111', 'RSS Cổng TTĐT xã Hải Quang',
-   'https://haiquang.ninhbinh.gov.vn/rss.aspx', 'rss', '{}', 180),
+   '{"listSelector":"article:has(time)","titleSelector":"a","linkSelector":"a","dateSelector":"time"}', 1440),
 
   ('11111111-1111-1111-1111-111111111111', 'UBND huyện (website xã)',
    'https://example-xa-haiquang.gov.vn', 'gov_website',

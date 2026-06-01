@@ -52,6 +52,11 @@ const ONLY_SOURCE = args.includes('--source') ? args[args.indexOf('--source') + 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const FETCH_TIMEOUT_MS = 25_000;
 
+// Chỉ giữ tin có ngày trong khoảng này (ngày) — bỏ tin cũ. Tin KHÔNG có ngày vẫn giữ
+// (trang danh sách thường chỉ hiện tin mới). Sửa số này để nới/thu phạm vi "tuần này".
+const MAX_AGE_DAYS = 7;
+const AGE_CUTOFF = Date.now() - MAX_AGE_DAYS * 864e5;
+
 const db = createClient(SUPA_URL, SERVICE, { auth: { persistSession: false } });
 const rss = new Parser({
   headers: { 'user-agent': UA },
@@ -75,7 +80,7 @@ let totalInserted = 0;
 for (const s of sources) {
   const r = await crawlSource(s);
   totalInserted += r.inserted;
-  const tag = r.error ? `LỖI: ${r.error}` : `found=${r.found} new=${r.inserted} skip=${r.skipped}`;
+  const tag = r.error ? `LỖI: ${r.error}` : `found=${r.found} new=${r.inserted} skip=${r.skipped} cũ=${r.old}`;
   console.log(`  • ${s.name}: ${tag}`);
 }
 console.log(`Hoàn tất. Tổng tin mới: ${totalInserted}`);
@@ -83,11 +88,13 @@ process.exit(0);
 
 // ---------- crawl 1 nguồn --------------------------------------------
 async function crawlSource(s) {
-  const report = { found: 0, inserted: 0, skipped: 0, error: undefined };
+  const report = { found: 0, inserted: 0, skipped: 0, old: 0, error: undefined };
   try {
     const items = await fetchItems(s);
     report.found = items.length;
     for (const it of items) {
+      // Bỏ tin cũ (chỉ khi xác định được ngày). Tin không ngày -> vẫn nạp.
+      if (it.publishedAt && it.publishedAt.getTime() < AGE_CUTOFF) { report.old++; continue; }
       const ok = await insertNewsIfNew(s, it);
       ok ? report.inserted++ : report.skipped++;
     }
@@ -119,12 +126,35 @@ async function parseRss(feedUrl) {
   const xml = await fetchText(feedUrl);
   const feed = await rss.parseString(xml);
   return (feed.items ?? []).map((it) => ({
-    title: (it.title ?? '').trim(),
-    content: (it.contentSnippet ?? it.content ?? '').trim(),
+    title: decodeEntities((it.title ?? '').trim()),
+    content: decodeEntities((it.contentSnippet ?? it.content ?? '').trim()),
     publishedAt: it.isoDate ? new Date(it.isoDate) : null,
     originUrl: (it.link ?? '').trim(),
     imageUrl: it.media?.$?.url ?? it.enclosure?.url ?? (typeof it.img === 'string' ? it.img.trim() : null) ?? null,
   })).filter((i) => i.title && i.originUrl);
+}
+
+const NAMED_ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  ndash: '–', mdash: '—', hellip: '…', laquo: '«', raquo: '»', rsquo: '’', lsquo: '‘',
+  ldquo: '“', rdquo: '”', copy: '©', reg: '®', deg: '°',
+};
+/** Giải mã HTML entity (gồm cả double-encoded của feed .gov.vn): &#244; → ô, &amp;#225; → á. */
+function decodeEntities(s) {
+  if (!s || !s.includes('&')) return s;
+  let prev;
+  // Lặp tối đa 2 vòng để xử lý double-encoding (&amp;#225; → &#225; → á).
+  for (let i = 0; i < 2 && s !== prev; i++) {
+    prev = s;
+    s = s
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => safeCodePoint(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (_, d) => safeCodePoint(parseInt(d, 10)))
+      .replace(/&([a-zA-Z]+);/g, (m, name) => NAMED_ENTITIES[name] ?? m);
+  }
+  return s;
+}
+function safeCodePoint(cp) {
+  try { return String.fromCodePoint(cp); } catch { return ''; }
 }
 
 // ---------- parser HTML (cheerio) ------------------------------------
@@ -138,7 +168,7 @@ async function parseHtml(pageUrl, config, fetchDetail = true) {
     const node = $(el);
     const titleEl = config.titleSelector ? node.find(config.titleSelector) : node.find('a').first();
     // Fallback: nhiều site (Next.js SPA) đặt tiêu đề trong attr title= / alt= chứ không phải text.
-    const title = (titleEl.first().text().trim()
+    const title = decodeEntities(titleEl.first().text().trim()
       || titleEl.first().attr('title')?.trim()
       || node.find('img').first().attr('alt')?.trim()
       || '');
