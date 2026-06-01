@@ -1,0 +1,48 @@
+name: fb-group-publish
+
+# Đăng bài đã duyệt lên Group FB bằng Playwright (Vercel không chạy được Chromium).
+# Cookie + group id đọc từ Supabase (settings). Chỉ cần 3 secret Supabase.
+#
+# Secrets cần đặt (GitHub repo → Settings → Secrets and variables → Actions):
+#   SUPABASE_URL              = https://<ref>.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY = service_role key
+#   DEFAULT_TENANT_ID         = 11111111-1111-1111-1111-111111111111
+#
+# Mẹo free: để repo PUBLIC -> Actions không giới hạn phút.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'        # quét bài tới giờ mỗi 15 phút
+  repository_dispatch:
+    types: [publish]              # Vercel gọi để đăng ngay (tuỳ chọn)
+  workflow_dispatch:              # bấm chạy tay
+
+# Tránh 2 lần đăng chồng nhau
+concurrency:
+  group: fb-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/publish-due.mjs
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DEFAULT_TENANT_ID: ${{ secrets.DEFAULT_TENANT_ID }}
+      - name: Upload ảnh debug khi lỗi
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fb-debug
+          path: fb-debug.png
+          if-no-files-found: ignore

@@ -30,6 +30,13 @@ export default function SourcesPage() {
   const [interval, setIntervalMin] = useState(360);
   const [error, setError] = useState('');
 
+  // Sửa inline
+  const [editId, setEditId] = useState<string | null>(null);
+  const [edit, setEdit] = useState<{ name: string; url: string; type: string; interval: number }>(
+    { name: '', url: '', type: 'rss', interval: 360 },
+  );
+  const [editError, setEditError] = useState('');
+
   async function load() {
     setLoading(true);
     const res = await fetch('/api/sources');
@@ -70,6 +77,27 @@ export default function SourcesPage() {
     load();
   }
 
+  function startEdit(s: Source) {
+    setEditError('');
+    setEditId(s.id);
+    setEdit({ name: s.name, url: s.url, type: s.type, interval: s.crawl_interval_min });
+  }
+
+  async function saveEdit(id: string) {
+    setEditError('');
+    const res = await fetch(`/api/sources/${id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: edit.name, url: edit.url, type: edit.type, crawlIntervalMin: edit.interval }),
+    });
+    if (!res.ok) {
+      const j = await res.json();
+      setEditError(typeof j.error === 'string' ? j.error : 'Dữ liệu chưa hợp lệ (kiểm tra URL).');
+      return;
+    }
+    setEditId(null);
+    load();
+  }
+
   return (
     <div className="max-w-3xl">
       <h1 className="mb-6 text-2xl font-semibold">Nguồn dữ liệu</h1>
@@ -102,6 +130,39 @@ export default function SourcesPage() {
         <div className="space-y-3">
           {sources.length === 0 && <p className="text-neutral-500">Chưa có nguồn nào.</p>}
           {sources.map((s) => (
+            editId === s.id ? (
+              <div key={s.id} className="space-y-3 rounded-xl border border-neutral-300 bg-white p-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <input required placeholder="Tên nguồn" value={edit.name}
+                    onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+                    className="rounded-lg border border-neutral-300 p-2.5 text-sm" />
+                  <select value={edit.type} onChange={(e) => setEdit({ ...edit, type: e.target.value })}
+                    className="rounded-lg border border-neutral-300 p-2.5 text-sm">
+                    {TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <input required type="url" placeholder="URL" value={edit.url}
+                  onChange={(e) => setEdit({ ...edit, url: e.target.value })}
+                  className="w-full rounded-lg border border-neutral-300 p-2.5 text-sm" />
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-neutral-600">Chu kỳ crawl (phút):</label>
+                  <input type="number" min={30} value={edit.interval}
+                    onChange={(e) => setEdit({ ...edit, interval: Number(e.target.value) })}
+                    className="w-28 rounded-lg border border-neutral-300 p-2 text-sm" />
+                </div>
+                {editError && <p className="text-sm text-red-600">⚠️ {editError}</p>}
+                <div className="flex gap-2">
+                  <button onClick={() => saveEdit(s.id)}
+                    className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700">
+                    Lưu
+                  </button>
+                  <button onClick={() => setEditId(null)}
+                    className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50">
+                    Huỷ
+                  </button>
+                </div>
+              </div>
+            ) : (
             <div key={s.id} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -112,6 +173,10 @@ export default function SourcesPage() {
                 <p className="mt-1 truncate text-xs text-neutral-500">{s.url}</p>
               </div>
               <div className="flex shrink-0 gap-2">
+                <button onClick={() => startEdit(s)}
+                  className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50">
+                  Sửa
+                </button>
                 <button onClick={() => toggle(s)}
                   className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50">
                   {s.is_active ? 'Tắt' : 'Bật'}
@@ -122,6 +187,7 @@ export default function SourcesPage() {
                 </button>
               </div>
             </div>
+            )
           ))}
         </div>
       )}

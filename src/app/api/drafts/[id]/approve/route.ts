@@ -25,6 +25,29 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       status: 'queued',
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Đăng ngay + dùng Playwright: kích GitHub Actions chạy liền (nếu đã cấu hình),
+    // thay vì đợi lịch quét 15 phút. Lỗi ở đây không chặn việc duyệt.
+    const immediate = new Date(scheduledAt).getTime() <= Date.now() + 60_000;
+    if (immediate && prov === 'playwright') {
+      await triggerPublishWorkflow().catch(() => {});
+    }
   }
   return NextResponse.json({ ok: true });
+}
+
+/** Gọi repository_dispatch để GitHub Actions đăng ngay (tuỳ chọn). */
+async function triggerPublishWorkflow(): Promise<void> {
+  const token = process.env.GITHUB_DISPATCH_TOKEN;
+  const repo = process.env.GITHUB_REPO; // vd "cuongvu123/hai-quang-fb"
+  if (!token || !repo) return;
+  await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: 'application/vnd.github+json',
+      'x-github-api-version': '2022-11-28',
+    },
+    body: JSON.stringify({ event_type: 'publish' }),
+  });
 }

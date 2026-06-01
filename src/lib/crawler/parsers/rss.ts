@@ -2,7 +2,7 @@ import Parser from 'rss-parser';
 import type { ParsedItem } from '@/types';
 
 const parser = new Parser({
-  customFields: { item: [['media:content', 'media'], ['enclosure', 'enclosure']] },
+  customFields: { item: [['media:content', 'media'], ['enclosure', 'enclosure'], ['img', 'img']] },
 });
 
 export async function parseRss(feedUrl: string): Promise<ParsedItem[]> {
@@ -15,6 +15,7 @@ export async function parseRss(feedUrl: string): Promise<ParsedItem[]> {
     imageUrl:
       (it as { media?: { $?: { url?: string } } }).media?.$?.url ??
       (it as { enclosure?: { url?: string } }).enclosure?.url ??
+      (it as { img?: string }).img?.trim() ??
       null,
   })).filter((i) => i.title && i.originUrl);
 }
