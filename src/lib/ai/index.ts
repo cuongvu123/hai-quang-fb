@@ -15,6 +15,19 @@ export interface AiConfig {
   geminiModel?: string;
 }
 
+/** Dựng AiConfig từ bảng settings (dùng chung cho cron generate & ingest). */
+export function aiConfigFromSettings(settings: Record<string, string>): AiConfig {
+  return {
+    provider: (settings.ai_provider as AiConfig['provider']) || 'gemini',
+    claudeApiKey: settings.claude_api_key,
+    openaiApiKey: settings.openai_api_key,
+    geminiApiKey: settings.gemini_api_key,
+    claudeModel: settings.claude_model,
+    openaiModel: settings.openai_model,
+    geminiModel: settings.gemini_model,
+  };
+}
+
 /** Chọn provider theo settings của tenant. Đổi AI chỉ ở một chỗ. */
 export function createAiProvider(cfg: AiConfig): AiProvider {
   if (cfg.provider === 'gemini') {

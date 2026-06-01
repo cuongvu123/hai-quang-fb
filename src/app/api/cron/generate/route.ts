@@ -3,7 +3,7 @@ import { assertCron, defaultTenantId } from '@/lib/cron-auth';
 import {
   unusedNews, getSettings, recentPublishedBodies, insertDraft,
 } from '@/lib/db/repositories';
-import { createAiProvider, generateDraft, moderate } from '@/lib/ai';
+import { aiConfigFromSettings, createAiProvider, generateDraft, moderate } from '@/lib/ai';
 import { pickTemplate } from '@/lib/ai/schedule';
 import { logger } from '@/lib/logger';
 
@@ -26,15 +26,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, message: 'Không có tin mới.' });
   }
 
-  const ai = createAiProvider({
-    provider: (settings.ai_provider as 'claude' | 'openai' | 'gemini') || 'gemini',
-    claudeApiKey: settings.claude_api_key,
-    openaiApiKey: settings.openai_api_key,
-    geminiApiKey: settings.gemini_api_key,
-    claudeModel: settings.claude_model,
-    openaiModel: settings.openai_model,
-    geminiModel: settings.gemini_model,
-  });
+  const ai = createAiProvider(aiConfigFromSettings(settings));
 
   const template = pickTemplate(new Date());
   const recent = await recentPublishedBodies(tenantId);

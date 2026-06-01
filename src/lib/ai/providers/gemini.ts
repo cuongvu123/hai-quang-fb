@@ -1,7 +1,14 @@
 import type { AiProvider, AiSourceNews, GenerateArgs } from '../provider';
-import type { GeneratedPost, NewsCategory } from '@/types';
+import type { ExtractedItem, GeneratedPost, MediaFile, NewsCategory } from '@/types';
 import { buildClassifyPrompt, SYSTEM_PROMPT } from '../templates/prompts';
-import { extractJson, safeCategory } from '../parse';
+import { extractJson, extractJsonArray, safeCategory } from '../parse';
+
+const EXTRACT_PROMPT = `Bạn là trợ lý số hoá thông báo của chính quyền cấp xã.
+Hãy ĐỌC kỹ các tệp ảnh/PDF (và ghi chú nếu có) rồi trích xuất các MẨU TIN riêng biệt.
+Chỉ dùng thông tin THỰC SỰ có trong tệp, KHÔNG bịa.
+Trả về DUY NHẤT một mảng JSON, mỗi phần tử:
+{ "title": "tiêu đề ngắn gọn", "content": "toàn bộ nội dung đọc được, giữ số liệu/ngày giờ/địa điểm", "publishedAt": "YYYY-MM-DD hoặc null" }
+Nếu tệp chỉ chứa 1 thông báo, trả mảng 1 phần tử. Không thêm chữ nào ngoài JSON.`;
 
 /**
  * Gemini provider — free tier của Google AI Studio.
@@ -54,4 +61,44 @@ export class GeminiProvider implements AiProvider {
     const json = extractJson<GeneratedPost>(raw);
     return { ...json, category: safeCategory(json.category) };
   }
+
+  /** Đọc ảnh/PDF bằng Gemini multimodal → mảng tin chuẩn hoá. */
+  async extractFromMedia({ files, note }: { files: MediaFile[]; note?: string }): Promise<ExtractedItem[]> {
+    const url = `${GEMINI_BASE}/${this.model}:generateContent?key=${this.apiKey}`;
+    const parts: Array<Record<string, unknown>> = files.map((f) => ({
+      inline_data: { mime_type: f.mimeType, data: f.dataBase64 },
+    }));
+    if (note?.trim()) parts.push({ text: `Ghi chú kèm theo: ${note.trim()}` });
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: EXTRACT_PROMPT }] },
+        contents: [{ role: 'user', parts }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 4000 },
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Gemini API ${res.status}: ${await res.text()}`);
+    }
+    const data = await res.json();
+    const text: string = data?.candidates?.[0]?.content?.parts
+      ?.map((p: { text?: string }) => p.text ?? '').join('\n') ?? '';
+
+    return extractJsonArray<ExtractedItem>(text)
+      .map((it) => ({
+        title: (it.title ?? '').trim(),
+        content: (it.content ?? '').trim(),
+        publishedAt: normalizeDate(it.publishedAt),
+      }))
+      .filter((it) => it.title || it.content);
+  }
+}
+
+/** Đưa chuỗi ngày về ISO (hoặc null nếu không hợp lệ / 'null'). */
+function normalizeDate(v: unknown): string | null {
+  if (!v || typeof v !== 'string' || v.trim().toLowerCase() === 'null') return null;
+  const d = new Date(v.trim());
+  return isNaN(d.getTime()) ? null : d.toISOString();
 }

@@ -9,6 +9,7 @@ const SourceSchema = z.object({
   type: z.enum([
     'local_website', 'province_website', 'gov_website',
     'rss', 'facebook_page', 'local_news',
+    'google_sheet', 'manual_upload', 'telegram',
   ]),
   isActive: z.boolean().default(true),
   config: z.record(z.string()).default({}),
