@@ -5,5 +5,7 @@ node_modules/
 *.log
 .DS_Store
 playwright-state.json
+fb-state.json
+fb-debug.png
 *.tsbuildinfo
 next-env.d.ts

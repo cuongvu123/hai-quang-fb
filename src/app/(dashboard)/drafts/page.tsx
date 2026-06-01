@@ -16,13 +16,14 @@ export default function DraftsPage() {
   }
   useEffect(() => { load(); }, []);
 
-  async function approve(id: string) {
-    // mặc định lên lịch đăng sau 1 giờ
-    const scheduledAt = new Date(Date.now() + 3600_000).toISOString();
+  async function approve(id: string, delayMs: number) {
+    // delayMs = 0 -> đăng ngay (cron/publish lượt tới sẽ lấy); >0 -> lên lịch
+    const scheduledAt = new Date(Date.now() + delayMs).toISOString();
+    // provider do backend quyết theo setting publish_provider (graph_api | playwright)
     await fetch(`/api/drafts/${id}/approve`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ scheduledAt, provider: 'graph_api' }),
+      body: JSON.stringify({ scheduledAt }),
     });
     load();
   }
@@ -52,9 +53,15 @@ export default function DraftsPage() {
             </div>
             <h2 className="font-semibold">{d.title}</h2>
             <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">{d.body}</p>
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
-                onClick={() => approve(d.id)}
+                onClick={() => approve(d.id, 0)}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+              >
+                Đăng ngay
+              </button>
+              <button
+                onClick={() => approve(d.id, 3600_000)}
                 className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
               >
                 Duyệt & lên lịch (sau 1h)

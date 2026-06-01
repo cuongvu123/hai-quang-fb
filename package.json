@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "db:push": "supabase db push",
-    "seed": "supabase db reset"
+    "seed": "supabase db reset",
+    "fb:login": "node scripts/fb-login.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
