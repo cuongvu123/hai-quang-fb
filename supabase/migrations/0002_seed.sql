@@ -21,6 +21,9 @@ insert into sources (tenant_id, name, url, type, config, crawl_interval_min) val
   ('11111111-1111-1111-1111-111111111111', 'RSS Báo Ninh Bình',
    'https://baoninhbinh.org.vn/rss/home.rss', 'rss', '{}', 180),
 
+  ('11111111-1111-1111-1111-111111111111', 'RSS Cổng TTĐT xã Hải Quang',
+   'https://haiquang.ninhbinh.gov.vn/rss.aspx', 'rss', '{}', 180),
+
   ('11111111-1111-1111-1111-111111111111', 'UBND huyện (website xã)',
    'https://example-xa-haiquang.gov.vn', 'gov_website',
    '{"listSelector":".post","titleSelector":".post-title a","linkSelector":".post-title a","contentSelector":".post-content"}', 720);
