@@ -1,6 +1,7 @@
 import type { Source, ParsedItem } from '@/types';
 import { parseRss } from './parsers/rss';
 import { parseHtml } from './parsers/html';
+import { parseSheet } from './parsers/sheet';
 import { dedupHash } from './dedup';
 import { insertNewsIfNew, markSourceCrawled } from '../db/repositories';
 
@@ -44,8 +45,14 @@ async function fetchItems(source: Source): Promise<ParsedItem[]> {
   switch (source.type) {
     case 'rss':
       return parseRss(source.url);
+    case 'google_sheet':
+      return parseSheet(source.url);
     case 'facebook_page':
       // Fanpage công khai: cần Graph API page feed (token) — để mở rộng sau.
+      return [];
+    case 'manual_upload':
+    case 'telegram':
+      // Kênh push (đẩy qua /api/ingest/*) — không crawl tự động.
       return [];
     default:
       return parseHtml(source.url, source.config);

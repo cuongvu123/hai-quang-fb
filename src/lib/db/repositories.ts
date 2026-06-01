@@ -13,6 +13,28 @@ export async function listActiveSources(tenantId: string): Promise<Source[]> {
   return (data ?? []).map(mapSource);
 }
 
+/**
+ * Tìm (hoặc tạo) một nguồn "hệ thống" cho kênh nạp tin thủ công.
+ * Dedup theo (tenant_id, url) — trùng unique constraint của bảng sources.
+ * Trả về id của nguồn để gắn cho crawled_news.
+ */
+export async function ensureSource(s: {
+  tenantId: string; name: string; url: string; type: string;
+}): Promise<string> {
+  const existing = await adminDb()
+    .from('sources').select('id')
+    .eq('tenant_id', s.tenantId).eq('url', s.url).maybeSingle();
+  if (existing.error) throw existing.error;
+  if (existing.data) return existing.data.id as string;
+
+  const { data, error } = await adminDb().from('sources').insert({
+    tenant_id: s.tenantId, name: s.name, url: s.url, type: s.type,
+    is_active: true, config: {}, crawl_interval_min: 525600, // ~1 năm: không crawl tự động
+  }).select('id').single();
+  if (error) throw error;
+  return data!.id as string;
+}
+
 export async function markSourceCrawled(sourceId: string): Promise<void> {
   const { error } = await adminDb()
     .from('sources').update({ last_crawled_at: new Date().toISOString() })

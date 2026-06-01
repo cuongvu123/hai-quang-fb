@@ -2,7 +2,9 @@
 
 export type SourceType =
   | 'local_website' | 'province_website' | 'gov_website'
-  | 'rss' | 'facebook_page' | 'local_news';
+  | 'rss' | 'facebook_page' | 'local_news'
+  // Kênh nạp tin thủ công (non-tech friendly)
+  | 'google_sheet' | 'manual_upload' | 'telegram';
 
 export type NewsCategory =
   | 'admin_notice' | 'education' | 'health' | 'culture' | 'sports'
@@ -93,4 +95,17 @@ export interface GeneratedPost {
   title: string;
   body: string;
   category: NewsCategory;
+}
+
+/** Một tệp đa phương thức (ảnh/PDF) gửi cho AI trích xuất. */
+export interface MediaFile {
+  mimeType: string;   // 'image/jpeg' | 'image/png' | 'application/pdf' ...
+  dataBase64: string; // nội dung tệp đã mã hoá base64 (không kèm tiền tố data:)
+}
+
+/** Tin trích xuất được từ ảnh/PDF/văn bản tự do (chuẩn hoá như ParsedItem). */
+export interface ExtractedItem {
+  title: string;
+  content: string;
+  publishedAt: string | null; // ISO date nếu nhận diện được, ngược lại null
 }

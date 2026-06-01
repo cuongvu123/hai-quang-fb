@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 const NAV = [
   { href: '/dashboard', label: 'Tổng quan', icon: '📊' },
   { href: '/sources', label: 'Nguồn dữ liệu', icon: '🌐' },
+  { href: '/ingest', label: 'Nạp tin nhanh', icon: '📥' },
   { href: '/news', label: 'Tin đã thu thập', icon: '📰' },
   { href: '/drafts', label: 'Bài AI chờ duyệt', icon: '✍️' },
   { href: '/calendar', label: 'Lịch đăng bài', icon: '📅' },

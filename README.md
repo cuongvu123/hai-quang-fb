@@ -8,6 +8,10 @@ Con người luôn ở giữa (human-in-the-loop). AI **không bao giờ** đăn
 > 🆓 **Có thể chạy hoàn toàn miễn phí** (Vercel + Supabase + Gemini + GitHub Actions).
 > Tóm tắt nhanh: [`docs/FREE_DEPLOY.md`](docs/FREE_DEPLOY.md).
 
+> 📥 **Nạp tin không cần kỹ thuật**: ngoài crawler RSS/HTML, có 3 kênh nạp thủ công —
+> **tải ảnh/PDF** (Gemini đọc nội dung), **Google Sheet**, **bot Telegram**.
+> Xem [`docs/INGEST_GUIDE.md`](docs/INGEST_GUIDE.md).
+
 > ⚠️ **Đây là một nền tảng (foundation) chạy được, không phải sản phẩm đã đóng gói 100%.**
 > Các phần "bộ não" (AI generator, moderation, crawler, provider pattern Facebook, schema, cron jobs, API)
 > được implement đầy đủ. Phần UI admin có 2 màn hình mẫu hoàn chỉnh + cấu trúc cho các màn còn lại để bạn mở rộng.
